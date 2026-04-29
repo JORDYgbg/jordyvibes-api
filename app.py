@@ -1,41 +1,56 @@
 from flask import Flask, jsonify, request
 from flask_cors import CORS
-import yt_dlp
-import os
+import requests
 
 app = Flask(__name__)
 CORS(app)
 
-# Ruta absoluta al cookies.txt
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-COOKIES = os.path.join(BASE_DIR, 'cookies.txt')
+INSTANCES = [
+    'https://inv.nadeko.net',
+    'https://invidious.nerdvpn.de',
+    'https://invidious.privacyredirect.com',
+    'https://yt.cdaut.de',
+]
 
 @app.route('/audio')
 def audio():
     vid = request.args.get('v')
     if not vid:
         return jsonify({'error': 'falta v'}), 400
-    try:
-        ydl_opts = {
-            'format': 'bestaudio[ext=m4a]/bestaudio/best',
-            'quiet': True,
-            'no_warnings': True,
-            'cookiefile': COOKIES,
-            'extractor_args': {'youtube': {'skip': ['dash', 'hls']}},
-        }
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(
-                f'https://www.youtube.com/watch?v={vid}',
-                download=False
+    
+    for base in INSTANCES:
+        try:
+            r = requests.get(
+                f'{base}/api/v1/videos/{vid}',
+                params={'fields': 'adaptiveFormats,formatStreams'},
+                timeout=8
             )
-            return jsonify({'url': info['url'], 'duration': info.get('duration', 0)})
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+            if not r.ok:
+                continue
+            data = r.json()
+            
+            # Solo audio
+            audio_formats = [f for f in data.get('adaptiveFormats', []) 
+                           if f.get('type','').startswith('audio/')]
+            audio_formats.sort(key=lambda x: x.get('bitrate', 0), reverse=True)
+            
+            if audio_formats:
+                return jsonify({'url': audio_formats[0]['url']})
+            
+            # Fallback a formatStreams
+            streams = data.get('formatStreams', [])
+            if streams:
+                return jsonify({'url': streams[-1]['url']})
+                
+        except Exception as e:
+            print(f'{base} falló: {e}')
+            continue
+    
+    return jsonify({'error': 'No se pudo obtener audio'}), 500
 
 @app.route('/ping')
 def ping():
-    exists = os.path.exists(COOKIES)
-    return jsonify({'cookies_found': exists, 'path': COOKIES})
+    return jsonify({'ok': True})
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=10000)
