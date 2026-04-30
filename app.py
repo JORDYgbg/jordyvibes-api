@@ -16,18 +16,12 @@ def audio():
         return jsonify({'error': 'falta v'}), 400
     try:
         ydl_opts = {
-            'format': 'bestaudio[ext=m4a]/bestaudio/best',
+            'format': 'bestaudio/best',
             'quiet': True,
             'no_warnings': True,
             'cookiefile': COOKIES,
             'http_headers': {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-                'Accept-Language': 'es-EC,es;q=0.9',
-            },
-            'extractor_args': {
-                'youtube': {
-                    'player_client': ['web'],
-                }
             },
         }
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
